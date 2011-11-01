@@ -76,10 +76,10 @@ static BKImageStore *__imageStore = nil;
 
 @implementation BKImageStore
 
-@synthesize thumbnailSize = _thumbnailSize;
-@synthesize storageSize = _storageSize;
-@synthesize cacheFileIOErrorHandler = _cacheFileIOErrorHandler;
-@synthesize jpegCompressionRatio = _jpegCompressionRatio;
+@synthesize thumbnailSize = thumbnailSize_;
+@synthesize storageSize = storageSize_;
+@synthesize cacheFileIOErrorHandler = cacheFileIOErrorHandler_;
+@synthesize jpegCompressionRatio = jpegCompressionRatio_;
 
 + (BKImageStore *)sharedStore
 {
@@ -95,13 +95,13 @@ static BKImageStore *__imageStore = nil;
     self = [super init];
     if (self)
     {
-        _cache = [[NSCache alloc] init];
-        _imageBlockEntries = [[NSMutableDictionary alloc] init];
-        _cachedFileSizes = [[NSMutableSet alloc] init];
-        _thumbnailSize = NSNotFound;
-        _storageSize = NSNotFound;
-        _jpegCompressionRatio = 0.65;
-        _cacheFileIOErrorHandler = [^(NSError *error) {
+        cache_ = [[NSCache alloc] init];
+        imageBlockEntries_ = [[NSMutableDictionary alloc] init];
+        cachedFileSizes_ = [[NSMutableSet alloc] init];
+        thumbnailSize_ = NSNotFound;
+        storageSize_ = NSNotFound;
+        jpegCompressionRatio_ = 0.65;
+        cacheFileIOErrorHandler_ = [^(NSError *error) {
             NSLog(@"Error saving a file to cache - %@", error);
         } copy];
     }
@@ -109,21 +109,21 @@ static BKImageStore *__imageStore = nil;
 }
 - (void)dealloc
 {
-    [_cache release];
-    [_imageBlockEntries release];
-    [_cacheFileIOErrorHandler release];
-    [_cachedFileSizes release];
+    [cache_ release];
+    [imageBlockEntries_ release];
+    [cacheFileIOErrorHandler_ release];
+    [cachedFileSizes_ release];
     [super dealloc];
 }
 
 - (BOOL)preloadThumbnails
 {
-    return _thumbnailSize != NSNotFound;
+    return thumbnailSize_ != NSNotFound;
 }
 
 - (void)addCachedFileSize:(NSUInteger)size
 {
-    [_cachedFileSizes addObject:[NSNumber numberWithUnsignedInteger:size]];
+    [cachedFileSizes_ addObject:[NSNumber numberWithUnsignedInteger:size]];
 }
 #pragma mark -
 #pragma mark Path Accessors
@@ -158,11 +158,11 @@ static BKImageStore *__imageStore = nil;
 #pragma mark Image Cache
 - (UIImage *)cacheImageForKey:(NSString *)key
 {
-    return [_cache objectForKey:key];
+    return [cache_ objectForKey:key];
 }
 - (void)cacheImage:(UIImage *)image forKey:(NSString *)key
 {
-    [_cache setObject:image forKey:key];
+    [cache_ setObject:image forKey:key];
 }
 
 #pragma mark Image Entry Creation
@@ -173,11 +173,11 @@ static BKImageStore *__imageStore = nil;
 
     BKImageStoreLoader *loader = [[BKImageStoreLoader alloc] initWithImageID:imageID size:maxSize block:block];
 
-    NSMutableDictionary *entries = [_imageBlockEntries objectForKey:imageID];
+    NSMutableDictionary *entries = [imageBlockEntries_ objectForKey:imageID];
     if (entries == nil)
     {
         entries = [NSMutableDictionary dictionary];
-        [_imageBlockEntries setObject:entries forKey:imageID];
+        [imageBlockEntries_ setObject:entries forKey:imageID];
     }
     [entries setObject:loader forKey:loader.loaderID];
 
@@ -188,10 +188,10 @@ static BKImageStore *__imageStore = nil;
 - (void)removeAllImageBlocksForImageID:(NSString *)imageID
 {
     NSParameterAssert(imageID);
-    for (BKImageStoreLoader *loader in [_imageBlockEntries objectForKey:imageID])
+    for (BKImageStoreLoader *loader in [imageBlockEntries_ objectForKey:imageID])
         loader.cancel = YES;
     
-    [_imageBlockEntries removeObjectForKey:imageID];
+    [imageBlockEntries_ removeObjectForKey:imageID];
 }
 - (void)removeImageBlockID:(id)loaderID forImageID:(NSString *)imageID;
 {
@@ -200,13 +200,13 @@ static BKImageStore *__imageStore = nil;
     if (loaderID == nil)
         return;
     
-    NSMutableDictionary *entries = [_imageBlockEntries objectForKey:imageID];
+    NSMutableDictionary *entries = [imageBlockEntries_ objectForKey:imageID];
     BKImageStoreLoader *loader = [entries objectForKey:loaderID];
     loader.cancel = YES;
     [entries removeObjectForKey:loaderID];
     
     if ([entries count] == 0)
-        [_imageBlockEntries removeObjectForKey:imageID];
+        [imageBlockEntries_ removeObjectForKey:imageID];
 
 }
 - (void)executeThumbnailForLoader:(BKImageStoreLoader *)loader
@@ -241,7 +241,7 @@ static BKImageStore *__imageStore = nil;
 
         loader.block(cachedImage);
         
-        NSMutableDictionary *entries = [_imageBlockEntries objectForKey:loader.imageID];
+        NSMutableDictionary *entries = [imageBlockEntries_ objectForKey:loader.imageID];
         [entries removeObjectForKey:[loader loaderID]];
     });
 }
@@ -266,7 +266,7 @@ static BKImageStore *__imageStore = nil;
     NSParameterAssert(image);
     
     dispatch_async(image_store_background_queue(), ^{
-        NSData *imageData = UIImageJPEGRepresentation(image, _jpegCompressionRatio);
+        NSData *imageData = UIImageJPEGRepresentation(image, jpegCompressionRatio_);
         NSError *error = nil;
         
         BOOL ok = [self saveImageData:imageData toPath:path error:&error];
@@ -395,7 +395,7 @@ static BKImageStore *__imageStore = nil;
         //
         // Save the image if flagged as a 'cached size', and then a thumbnail
         //
-        if ([_cachedFileSizes containsObject:[NSNumber numberWithUnsignedInteger:loader.maxSize]])
+        if ([cachedFileSizes_ containsObject:[NSNumber numberWithUnsignedInteger:loader.maxSize]])
             [self saveToFile:[self cachedPathForKey:[loader cacheKey]] image:image];
 
         CGImageRelease(imageRef);
@@ -484,7 +484,7 @@ static BKImageStore *__imageStore = nil;
         dispatch_async(dispatch_get_main_queue(), ^{
             NSArray *loaders = nil;
 
-            NSMutableDictionary *entries = [_imageBlockEntries objectForKey:imageID];
+            NSMutableDictionary *entries = [imageBlockEntries_ objectForKey:imageID];
             loaders = [entries allValues];
 
             // Kick off resizes for any block loaders in the system

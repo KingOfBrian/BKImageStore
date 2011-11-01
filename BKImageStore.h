@@ -44,17 +44,18 @@ typedef void (^bk_error_block)(NSError* error);
 typedef void (^bk_save_block)();
 
 @interface BKImageStore : NSObject {
-    NSCache *_cache;
-    NSMutableDictionary *_imageBlockEntries;
-    NSMutableSet *_cachedFileSizes;
+    NSCache *cache_;
+    NSMutableDictionary *imageBlockEntries_;
+    NSMutableSet *cachedFileSizes_;
     
-    NSUInteger _thumbnailSize;
-    NSUInteger _storageSize;
+    NSUInteger thumbnailSize_;
+    NSUInteger storageSize_;
     
-    CGFloat _jpegCompressionRatio; 
+    CGFloat jpegCompressionRatio_; 
     
-    bk_error_block _cacheFileIOErrorHandler;
+    bk_error_block cacheFileIOErrorHandler_;
 }
+
 /**
  * Configuration routines
  * These properties setup the BKImageStore paramaters and should be configured 
@@ -87,7 +88,7 @@ typedef void (^bk_save_block)();
  * Specify a size to cache to disk.  If your app is using one size most of the time
  *  this will improve loading performance at the expense of save time and disk space.
  *
- *  FIXME: Not sure why I chose to have multiple size's here, I doubt it will come in handy
+ *  FIXME: Not sure why I chose to have multiple size's here, Should be changed
  *  FIXME: Use CGSize and look at the image orientation to determine proper max size
  */
 - (void)addCachedFileSize:(NSUInteger)size;
@@ -154,12 +155,15 @@ typedef void (^bk_save_block)();
 /**
  * Cancel the operation associated with the loaderID associated with imageID
  *
+ *  This call can ONLY be called on main thread
  * FIXME: imageID should not be required
  */
 - (void)removeImageBlockID:(id)loaderID forImageID:(NSString *)imageID;
 
 /**
  * Cancel the operation associated with the loaderID.
+ * 
+ *  This call can ONLY be called on main thread
  */
 - (void)removeAllImageBlocksForImageID:(NSString *)imageID;
 
